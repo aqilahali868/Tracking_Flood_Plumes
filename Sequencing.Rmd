@@ -1,0 +1,37 @@
+---
+title: "TurbidityBiomarkers"
+output: html_document
+date: "2026-11-16"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{bash}
+#Initial Setup - Folders and .gitignore
+mkdir -p data/raw data/processed scripts genomics_work outputs/figures outputs/gee_maps docs
+
+cat << 'EOF' > .gitignore
+# RStudio session & history files
+.Rhistory
+.RData
+.Rproj.user/
+
+# Large bioinformatics & raw data files (prevents GitHub 100 MB push errors)
+data/raw/*.fastq*
+data/raw/*.fq*
+genomics_work/
+*.bam
+*.bai
+*.sam
+*.fasta
+*.fa
+EOF
+```
