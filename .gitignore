@@ -2,7 +2,6 @@
 .Rhistory
 .RData
 .Rproj.user/
-
 # Large bioinformatics & raw data files (prevents GitHub 100 MB push errors)
 data/raw/*.fastq*
 data/raw/*.fq*
@@ -12,3 +11,6 @@ genomics_work/
 *.sam
 *.fasta
 *.fa
+FloodPlume.html
+.png
+.js
