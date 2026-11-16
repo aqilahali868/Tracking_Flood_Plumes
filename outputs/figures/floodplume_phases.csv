@@ -1,0 +1,4 @@
+phase,days,median_runoff_ML,max_runoff_ML,mean_temp_c,ec_missing_pct
+Pre-Flood Baseline,85,3182,14719,29.7,100
+Active Flood Plume,92,41451,212272,29.2,18.5
+Post-Flood Recovery,6,3686,3939,26,0

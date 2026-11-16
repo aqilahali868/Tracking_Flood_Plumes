@@ -8,14 +8,9 @@ date: "2026-11-16"
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## R Markdown
-
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
-
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
-
+Initial Setup - Folders and .gitignore
 ```{bash}
-#Initial Setup - Folders and .gitignore
+
 mkdir -p data/raw data/processed scripts genomics_work outputs/figures outputs/gee_maps docs
 
 cat << 'EOF' > .gitignore
@@ -35,3 +30,42 @@ genomics_work/
 *.fa
 EOF
 ```
+
+ Stream inly needed reads into RStudio
+```{bash}
+ 
+ # Stream 20,000 E. coli Nanopore reads (~100-150 MB)
+fastq-dump -X 20000 --stdout SRR_ECOLI_ACCESSION > genomics_work/ecoli_sub.fastq
+
+# Stream 40,000 marine seawater Nanopore reads (~200-300 MB)
+fastq-dump -X 40000 --stdout SRR_SEAWATER_ACCESSION > genomics_work/seawater_sub.fastq
+
+# Merge into a single simulated flood-plume seawater metagenome
+cat genomics_work/ecoli_sub.fastq genomics_work/seawater_sub.fastq > genomics_work/plume_seawater.fastq
+```
+
+Assemble subsampled Oxford Nanopore seawater + E. coli reads in metagenome mode
+```{bash}
+
+flye --nano-hq subsampled.fastq \
+     --meta \
+     --out-dir flye_out \
+     --threads 4
+
+# Verify that assembly_graph.gfa was created
+ls -lh flye_out/assembly_graph.gfa
+
+```
+
+```{bash}
+
+# 1. Start Bandage metadata CSV
+echo "Name,Color,Taxon" > flye_out/bandage_ecoli.csv
+
+# 2. Extract contig names from your E. coli MetaBAT bin and assign Okabe-Ito orange
+# Replace bin.1.fa with whichever bin matched ~50.8% GC and ~4.6-5.0 Mb
+grep "^>" metabat_bins/bin.1.fa | sed 's/>//' | awk '{print $1",#D55E00,E_coli_MAG"}' >> flye_out/bandage_ecoli.csv
+
+head flye_out/bandage_ecoli.csv
+```
+

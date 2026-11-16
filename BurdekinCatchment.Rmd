@@ -14,55 +14,7 @@ execute:
   message: false
 ---
 
-```{r}
-
-library(tidyverse)
-library(lubridate)
-library(here)
-
-# 1. Read burdekin.csv skipping the 4 WMIP header rows and removing the 2 footer lines
-burdekin_clean <- read_csv(
-  here("data", "raw", "burdekin.csv"),
-  skip = 4,
-  col_names = FALSE,
-  show_col_types = FALSE
-) %>%
-  filter(str_detect(X1, "^\\d{2}:\\d{2}:\\d{2}")) %>%
-  transmute(
-    date = dmy_hms(X1) %>% as_date(),
-    level_m = as.numeric(X2),
-    level_qual = as.numeric(X3),
-    discharge_ML_day = as.numeric(X14),
-    discharge_qual = as.numeric(X15),
-    ec_us_cm = as.numeric(X22),
-    ec_qual = as.numeric(X23),
-    water_temp_c = as.numeric(X28)
-  ) %>%
-  filter(discharge_qual <= 130)
-
-# 2. Calculate pre-flood baseline (Nov-Dec 2023 90th percentile) & flood recovery days
-baseline_q90 <- burdekin_clean %>%
-  filter(month(date) %in% c(11, 12)) %>%
-  summarise(q90 = quantile(discharge_ML_day, 0.90, na.rm = TRUE)) %>%
-  pull(q90)
-
-peak_date <- burdekin_clean %>%
-  slice_max(discharge_ML_day, n = 1) %>%
-  pull(date)
-
-recovery_date <- burdekin_clean %>%
-  filter(date > peak_date, discharge_ML_day <= baseline_q90) %>%
-  slice_min(date, n = 1) %>%
-  pull(date)
-
-cat("Peak Flood Date:", as.character(peak_date), "\n")
-cat("Return-to-Baseline Date:", as.character(recovery_date), "\n")
-cat("Freshwater Pulse Duration:", as.numeric(recovery_date - peak_date), "days\n")
-
-```
-
-
-Incorporating Mod 2: R for Marine Science Techniqes into Workflow
+Incorporating Mod 2: R for Marine Science Techniqes into Plume Dissipation Workflow 
 ```{r}
 
 library(tidyverse)
@@ -70,15 +22,16 @@ library(lubridate)
 library(patchwork)
 library(here)
 
-# Okabe-Ito colorblind-safe palette
-pal_okabe <- c(
-  "Pre-Flood Baseline"   = "#0072B2",
-  "Active Flood Plume"   = "#D55E00",
-  "Post-Flood Recovery"  = "#009E73",
-  "Sensor Dropout"       = "#CC79A7"
+# Module 2 Colorblind-Safe Palette
+pal_mod2 <- c(
+  "Pre-Flood Baseline"  = "#0072B2",
+  "Active Flood Plume"  = "#D55E00",
+  "Post-Flood Recovery" = "#009E73",
+  "Sensor Dropout"      = "#CC79A7"
 )
 
-# 1. Import & clean QLD WMIP burdekin.csv (Burdekin River at Clare, using hms_dmy for "00:00:00 01/11/2023" format)
+
+# 1. Import & Clean QLD WMIP burdekin.csv ((Station 120006B: Burdekin at Clare)
 burdekin <- read_csv(
   here("data", "raw", "burdekin.csv"),
   skip = 4,
@@ -87,16 +40,16 @@ burdekin <- read_csv(
 ) %>%
   filter(str_detect(X1, "^\\d{2}:\\d{2}:\\d{2}")) %>%
   transmute(
-    date             = hms_dmy(X1) %>% as_date(),
+    date             = as_date(parse_date_time(X1, orders = "HMS dmy")),
     level_m          = as.numeric(X2),
     level_qual       = as.numeric(X3),
-    discharge_ML_day = as.numeric(X14),
-    discharge_qual   = as.numeric(X15),
+    runoff_ML_day = as.numeric(X14),
+    runoff_qual   = as.numeric(X15),
     ec_us_cm         = as.numeric(X22),
     ec_qual          = as.numeric(X23),
     water_temp_c     = as.numeric(X28)
   ) %>%
-  filter(discharge_qual <= 130)
+  filter(runoff_qual <= 130)
 
 
 # 2. Enforce complete daily grid & flag non-random EC sensor dropouts
@@ -104,36 +57,30 @@ burdekin_ts <- burdekin %>%
   complete(date = seq.Date(min(date, na.rm = TRUE), max(date, na.rm = TRUE), by = "day")) %>%
   mutate(
     ec_status        = if_else(is.na(ec_us_cm), "Sensor Dropout (Peak Flow)", "Valid Telemetry"),
-    discharge_ML_day = coalesce(discharge_ML_day, 0)
+    runoff_ML_day = coalesce(runoff_ML_day, 0)
   )
 
 # Quick check: should show 183 rows from 2023-11-01 to 2024-05-01
 glimpse(burdekin_ts)
-```
 
-
-```{r}
 
 # 3. Quantify dry-season baseline (Nov-Dec 2023 Q90) & dissipation duration
 baseline_q90 <- burdekin_ts %>%
   filter(month(date) %in% c(11, 12)) %>%
-  summarise(q90 = quantile(discharge_ML_day, 0.90, na.rm = TRUE)) %>%
+  summarise(q90 = quantile(runoff_ML_day, 0.90, na.rm = TRUE)) %>%
   pull(q90)
 
-peak_row <- burdekin_ts %>% slice_max(discharge_ML_day, n = 1)
+peak_row <- burdekin_ts %>% slice_max(runoff_ML_day, n = 1)
 peak_date <- peak_row$date
 
 recovery_date <- burdekin_ts %>%
-  filter(date > peak_date, discharge_ML_day <= baseline_q90) %>%
+  filter(date > peak_date, runoff_ML_day <= baseline_q90) %>%
   slice_min(date, n = 1) %>%
   pull(date)
 
 dissipation_days <- as.numeric(recovery_date - peak_date)
 
 
-```
-
-```{r}
 # 4. Classify hydrological phases for group summaries & plotting
 burdekin_phases <- burdekin_ts %>%
   mutate(
@@ -150,67 +97,185 @@ phase_summary <- burdekin_phases %>%
   group_by(phase) %>%
   summarise(
     days = n(),
-    median_discharge_ML = round(median(discharge_ML_day, na.rm = TRUE), 0),
-    max_discharge_ML    = round(max(discharge_ML_day, na.rm = TRUE), 0),
+    median_runoff_ML = round(median(runoff_ML_day, na.rm = TRUE), 0),
+    max_runoff_ML    = round(max(runoff_ML_day, na.rm = TRUE), 0),
     mean_temp_c         = round(mean(water_temp_c, na.rm = TRUE), 1),
     ec_missing_pct      = round(mean(is.na(ec_us_cm)) * 100, 1),
     .groups = "drop"
   )
 print(phase_summary)
 
+# Exporting summary table as a universal flat text file
+write_csv(phase_summary,here::here("outputs/figures/floodplume_phases.csv"))
 
 ```
 
+
+
+Using GEE Flood Plume Data 
 ```{r}
-# 5. Panel A: Discharge Hydrograph & Plume Dissipation Window
-p_hydro <- ggplot(burdekin_phases, aes(x = date, y = discharge_ML_day / 1000)) +
+
+library(tidyverse)
+library(lubridate)
+library(here)
+
+# 1. Read data & clean station labels
+#Extracted satellite turbidity proxy values from Google Earth Engine
+
+gee_s3 <- read_csv(here("data", "raw", "Burdekin_S3_Plume_TimeSeries.csv")) %>%
+  mutate(
+    date = ymd(date),
+    station = factor(station,
+      levels = c("S1_Burdekin_Mouth", "S2_Magnetic_Island", "S3_Davies_Reef"),
+      labels = c("Burdekin Mouth", "Magnetic Island", "Davies Reef")
+    )
+  )
+
+# 2. Plot smooth trend per location
+plot <- ggplot(gee_s3, aes(x = date, y = s3_turbidity_ratio, color = station, fill = station)) +
+  geom_smooth(span = 0.6, linewidth = 1.3, alpha = 0.18) +
+  facet_wrap(~ station) +
+  scale_x_date(date_breaks = "1 month", date_labels = "%b") +
+  scale_color_manual(values = c("#D55E00", "#0072B2", "#009E73"), guide = "none") +
+  scale_fill_manual(values = c("#D55E00", "#0072B2", "#009E73"), guide = "none") +
+  labs(
+    x = "Wet Season (2023 - 2024)",
+    y = "Satellite Turbidity Proxy",  #Sentinel-3 from GEE
+    caption = "Figure 1. Surface Turbidity Trends Across Reef Locations. Turbidity Porxy indicates estimated level of suspended sediment and organic matter near the sea surface. Higher values indicate more suspended sediment and organic matter near the sea surface, while lower values indicate clearer oceanic water."
+  ) +
+  theme_minimal(base_size = 12)+
+  theme(
+    plot.title       = element_text(face = "bold", size = 13),
+    plot.subtitle    = element_text(size = 10, color = "#444444"),
+    strip.text       = element_text(face = "bold", size = 11),
+    panel.grid.minor = element_blank(),
+    panel.spacing    = unit(1.5, "lines")
+  )
+
+#Higher values indicate more suspended sediment and organic matter near the sea surface, while lower values indicate clearer oceanic water
+print(plot)
+ggsave(here("outputs", "figures", "FloodPlumes.png"), plot, width = 10, height = 4, dpi = 300)
+
+```
+
+
+Using QLD Burdekin data 
+```{r}
+#| fig-cap: "Burdekin River Runoff & Post-Flood Dissipation Timeline (WMIP Station 120006B). Dashed green line = dry-season Q90 baseline (5,248 ML/day); shaded orange window = 81 day active flood tail" 
+#| fig-width:: 12
+#| fig-height:: 8
+
+library(tidyverse)
+library(lubridate)
+library(here)
+
+# 1. Load & filter QLD WMIP discharge telemetry (Station 120006B: Burdekin at Clare)
+burdekin_ts <- read_csv(
+  here("data", "raw", "burdekin.csv"),
+  skip = 4,
+  col_names = FALSE,
+  col_types = cols(.default = col_character()),
+  show_col_types = FALSE
+) %>%
+  filter(str_detect(X1, "^\\d{2}:\\d{2}:\\d{2}")) %>%
+  transmute(
+    date             = as.Date(X1, format = "%H:%M:%S %d/%m/%Y"),
+    runoff_ML_day = as.numeric(X14),
+    runoff_qual   = as.numeric(X15)
+  ) %>%
+  filter(!is.na(date), runoff_qual <= 130)
+
+# 2. Compute dry-season baseline (Nov-Dec Q90), peak flow, & 81 day recovery date
+baseline_q90 <- burdekin_ts %>%
+  filter(month(date) %in% c(11, 12)) %>%
+  summarise(q90 = quantile(runoff_ML_day, 0.90, na.rm = TRUE)) %>%
+  pull(q90)
+
+peak_row      <- burdekin_ts %>% slice_max(runoff_ML_day, n = 1)
+peak_date     <- peak_row$date
+peak_flow     <- peak_row$runoff_ML_day
+
+recovery_date <- burdekin_ts %>%
+  filter(date > peak_date, runoff_ML_day <= baseline_q90) %>%
+  slice_min(date, n = 1) %>%
+  pull(date)
+
+dissipation_days <- as.numeric(recovery_date - peak_date)
+
+# Exponential decay half-life (Peak -> Recovery)
+vis_fit <- burdekin_ts %>%
+  filter(date >= peak_date, date <= recovery_date) %>%
+  mutate(days_since_peak = as.numeric(date - peak_date)) %>%
+  lm(log(runoff_ML_day) ~ days_since_peak, data = .)
+
+clarity <- round(-log(2) / coef(vis_fit)[["days_since_peak"]], 1) #half-life 
+
+# 3. Build clean single-panel Figure 1 (Discharge hydrograph only)
+burdekin_fp <- ggplot(burdekin_ts, aes(x = date, y = runoff_ML_day / 1000)) +
+  # Shaded 81 day active flood window
   annotate(
     "rect",
-    xmin = peak_date, xmax = recovery_date,
+    xmin = ymd("2024-01-25"), xmax = recovery_date,
     ymin = -Inf, ymax = Inf,
-    fill = "#D55E00", alpha = 0.12
+    fill = "#D55E00", alpha = 0.10
   ) +
-  geom_line(aes(color = phase, group = 1), linewidth = 1) +
-  geom_hline(yintercept = baseline_q90 / 1000, linetype = "dashed", color = "#0072B2", linewidth = 0.7) +
+  # Discharge area & line
+  geom_area(fill = "#0072B2", alpha = 0.18) +
+  geom_line(color = "#0072B2", linewidth = 1.2) +
+  # Dry-season Q90 baseline dashed line
+  geom_hline(
+    yintercept = baseline_q90 / 1000,
+    linetype = "dashed", color = "#009E73", linewidth = 0.9
+  ) +
+  # Peak flow marker & arrow callout
+  geom_point(data = peak_row, aes(x = date, y = runoff_ML_day / 1000), color = "#D55E00", size = 3) +
   annotate(
     "text",
-    x = recovery_date + days(4),
-    y = max(burdekin_phases$discharge_ML_day) / 1000 * 0.85,
-    label = paste0("Dissipation Window:\n", dissipation_days, " days to baseline"),
-    hjust = 0, size = 3.6, fontface = "bold", color = "#D55E00"
+    x = ymd("2023-12-08"), y = 132, hjust = 0, size = 3.5, fontface = "bold", color = "#111111",
+    label = "Peak Flow: 212,272 ML/day\n(4 Feb 2024)"
   ) +
-  scale_color_manual(values = pal_okabe, name = "Hydrological Phase") +
+  annotate(
+    "segment",
+    x = ymd("2024-01-08"), y = 148, xend = peak_date - days(2), yend = (peak_flow / 1000) - 3,
+    arrow = arrow(length = unit(0.2, "cm")), color = "#222222", linewidth = 0.7
+  ) +
+  # Dissipation metrics summary box in top-right
+  annotate(
+    "label",
+    x = ymd("2024-04-29"), y = 215, hjust = 1, vjust = 1,
+    size = 3.4, fontface = "bold", color = "#D55E00", fill = "white", alpha = 0.92,
+    label = paste0(
+      "Total Dissipation: ", dissipation_days, " days\n",
+      "Flood Plume Half-Life (t½): ", clarity, " days\n",
+      "Baseline Return: 25 Apr 2024"
+    )
+  ) +
+  scale_x_date(
+    breaks = seq(ymd("2023-11-01"), ymd("2024-05-01"), by = "1 month"),
+    date_labels = "%b"
+  ) +
+  coord_cartesian(ylim = c(0, 230)) +
   labs(
-    title = "A. Burdekin River Freshwater Pulse & Dissipation Timeline (Station 120006B)",
-    subtitle = "Dashed line = Nov–Dec dry-season 90th percentile baseline threshold",
-    x = NULL,
-    y = "Discharge (Thousand ML / day)"
+    x = "Wet Season (2023–2024)",
+    y = "Riverine Runoff (1000ml/day)", 
+    caption = "Figure2. Burdekin River Runoff & Post-Flood Dissipation Timeline (WMIP Station 120006B). The dashed green line represents baseline runoff (dry-season Q90 = 5,248 ML/day) and orange shading represnets an 81 day active flood event."
   ) +
   theme_minimal(base_size = 12) +
-  theme(legend.position = "bottom")
+  theme(
+    plot.title       = element_text(face = "bold", size = 12.5),
+    plot.subtitle    = element_text(size = 9.5, color = "#444444"),
+    panel.grid.minor = element_blank()
+  )
 
-# 6. Panel B: Electrical Conductivity & Flood-Induced Sensor Dropout
-p_ec <- ggplot(burdekin_phases, aes(x = date, y = ec_us_cm)) +
-  geom_point(aes(color = phase), size = 2, alpha = 0.85, na.rm = TRUE) +
-  geom_rug(
-    data = filter(burdekin_phases, is.na(ec_us_cm)),
-    aes(x = date), sides = "b", color = "#CC79A7", linewidth = 0.8
-  ) +
-  scale_color_manual(values = pal_okabe, guide = "none") +
-  labs(
-    title = "B. Specific Conductance & Peak-Flood Telemetry Dropout",
-    subtitle = "Pink bottom ticks mark missing EC telemetry during high-flow sediment loading",
-    x = "Date (2023–2024 Wet Season)",
-    y = expression(Conductivity~(mu*S~cm^-1))
-  ) +
-  theme_minimal(base_size = 12)
+print(burdekin_fp)
 
-# Combine & export high-res figure for PowerPoint
-final_fig <- p_hydro / p_ec
 ggsave(
-  here("outputs", "figures", "Burdekin_Mod2_Dissipation.png"),
-  final_fig, width = 11, height = 7, dpi = 300
+  filename = here("outputs", "figures", "Burdekin_Runoff.png"),
+  plot     = burdekin_fp,
+  width    = 11,
+  height   = 4.4,
+  dpi      = 300
 )
 
-
 ```
+
