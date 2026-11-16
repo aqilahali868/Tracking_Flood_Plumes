@@ -143,14 +143,32 @@ plot <- ggplot(gee_s3, aes(x = date, y = s3_turbidity_ratio, color = station, fi
     y = "Satellite Turbidity Proxy",  #Sentinel-3 from GEE
     caption = "Surface Turbidity Trends Across Reef Locations. Turbidity Porxy indicates estimated level of suspended sediment and organic matter near the sea surface. Higher values indicate more suspended sediment and organic matter near the sea surface, while lower values indicate clearer oceanic water."
   ) +
-  theme_minimal(base_size = 12)+
-  theme(
-    plot.title       = element_text(face = "bold", size = 13),
-    plot.subtitle    = element_text(size = 10, color = "#444444"),
-    strip.text       = element_text(face = "bold", size = 11),
-    panel.grid.minor = element_blank(),
-    panel.spacing    = unit(1.5, "lines")
+theme_minimal(base_size = 12) +
+theme(
+  plot.title       = element_text(face = "bold", size = 13),
+  plot.subtitle    = element_text(size = 10, color = "#444444"),
+
+  plot.caption = element_text(
+    size = 8,
+    color = "black",
+    hjust = 0,
+    lineheight = 1,
+    margin = margin(t = 15, b = 10)
+  ),
+
+  plot.caption.position = "plot",
+
+  strip.text       = element_text(face = "bold", size = 11),
+  panel.grid.minor = element_blank(),
+  panel.spacing    = unit(1.5, "lines"),
+
+  plot.margin = margin(
+    t = 15,
+    r = 15,
+    b = 25,
+    l = 15
   )
+)
 
 #Higher values indicate more suspended sediment and organic matter near the sea surface, while lower values indicate clearer oceanic water
 print(plot)
@@ -260,12 +278,32 @@ burdekin_fp <- ggplot(burdekin_ts, aes(x = date, y = runoff_ML_day / 1000)) +
     y = "Riverine Runoff (1000ml/day)", 
     caption = "Burdekin River Runoff & Post-Flood Dissipation Timeline (WMIP Station 120006B). The dashed green line represents baseline runoff (dry-season Q90 = 5,248 ML/day) and orange shading represnets an 81 day active flood event."
   ) +
-  theme_minimal(base_size = 12) +
-  theme(
-    plot.title       = element_text(face = "bold", size = 12.5),
-    plot.subtitle    = element_text(size = 9.5, color = "#444444"),
-    panel.grid.minor = element_blank()
+theme_minimal(base_size = 12) +
+theme(
+  plot.title       = element_text(face = "bold", size = 13),
+  plot.subtitle    = element_text(size = 10, color = "#444444"),
+
+  plot.caption = element_text(
+    size = 8,
+    color = "black",
+    hjust = 0,
+    lineheight = 1,
+    margin = margin(t = 15, b = 10)
+  ),
+
+  plot.caption.position = "plot",
+
+  strip.text       = element_text(face = "bold", size = 11),
+  panel.grid.minor = element_blank(),
+  panel.spacing    = unit(1.5, "lines"),
+
+  plot.margin = margin(
+    t = 15,
+    r = 15,
+    b = 25,
+    l = 15
   )
+)
 
 print(burdekin_fp)
 
