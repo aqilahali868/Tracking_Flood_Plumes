@@ -31,7 +31,7 @@ pal_mod2 <- c(
 )
 
 
-# 1. Import & Clean QLD WMIP burdekin.csv ((Station 120006B: Burdekin at Clare)
+# 1. Import & Clean QLD WMIP burdekin.csv (Station 120006B: Burdekin at Clare)
 burdekin <- read_csv(
   here("data", "raw", "burdekin.csv"),
   skip = 4,
@@ -215,7 +215,6 @@ recovery_date <- burdekin_ts %>%
   filter(date > peak_date, runoff_ML_day <= baseline_q90) %>%
   slice_min(date, n = 1) %>%
   pull(date)
-
 dissipation_days <- as.numeric(recovery_date - peak_date)
 
 # Exponential decay half-life (Peak -> Recovery)
